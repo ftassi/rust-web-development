@@ -1,7 +1,8 @@
 use serde::Serialize;
 use std::io::{Error, ErrorKind};
 use std::str::FromStr;
-use warp::Filter;
+use warp::reject::Reject;
+use warp::{Filter, Rejection, Reply};
 
 #[derive(Serialize, Debug)]
 struct Question {
@@ -36,15 +37,35 @@ impl FromStr for QuestionId {
     }
 }
 
-async fn get_questions() -> Result<impl warp::Reply, warp::Rejection> {
+#[derive(Debug)]
+struct InvalidId;
+impl Reject for InvalidId {}
+
+async fn get_questions() -> Result<impl Reply, Rejection> {
     let question = Question::new(
         QuestionId::from_str("1").expect("Invalid ID"),
         "How do I learn rust?".to_string(),
         "You just try writing some code, the compiler will help you dude!".to_string(),
         None,
     );
+    match question.id.0.parse::<i32>() {
+        Err(_) => Err(warp::reject::custom(InvalidId)),
+        Ok(_) => Ok(warp::reply::json(&question)),
+    }
+}
 
-    Ok(warp::reply::json(&question))
+async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
+    if let Some(_) = r.find::<InvalidId>() {
+        Ok(warp::reply::with_status(
+            "Invalid ID",
+            warp::http::StatusCode::UNPROCESSABLE_ENTITY,
+        ))
+    } else {
+        Ok(warp::reply::with_status(
+            "Route not found",
+            warp::http::StatusCode::NOT_FOUND,
+        ))
+    }
 }
 
 #[tokio::main]
@@ -52,7 +73,8 @@ async fn main() {
     let get_items = warp::get()
         .and(warp::path("questions"))
         .and(warp::path::end())
-        .and_then(get_questions);
+        .and_then(get_questions)
+        .recover(return_error);
 
     let routes = get_items;
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
