@@ -1,8 +1,7 @@
 use serde::Serialize;
 use std::io::{Error, ErrorKind};
 use std::str::FromStr;
-use warp::reject::Reject;
-use warp::{Filter, Rejection, Reply};
+use warp::{http::StatusCode, reject::Reject, Filter, Rejection, Reply};
 
 #[derive(Serialize, Debug)]
 struct Question {
@@ -58,12 +57,12 @@ async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
     if let Some(_) = r.find::<InvalidId>() {
         Ok(warp::reply::with_status(
             "Invalid ID",
-            warp::http::StatusCode::UNPROCESSABLE_ENTITY,
+            StatusCode::UNPROCESSABLE_ENTITY,
         ))
     } else {
         Ok(warp::reply::with_status(
             "Route not found",
-            warp::http::StatusCode::NOT_FOUND,
+            StatusCode::NOT_FOUND,
         ))
     }
 }
