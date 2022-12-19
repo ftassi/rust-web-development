@@ -87,6 +87,17 @@ fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Err
     }
 }
 
+fn limit_pagination<T>(pagination: Pagination, elements: &Vec<T>) -> Pagination {
+    if pagination.end > elements.len() {
+        Pagination {
+            start: pagination.start,
+            end: elements.len(),
+        }
+    } else {
+        pagination
+    }
+}
+
 async fn get_questions(
     params: HashMap<String, String>,
     store: Store,
@@ -94,13 +105,11 @@ async fn get_questions(
     let res: Vec<Question> = store.questions.values().cloned().collect();
     if !params.is_empty() {
         let pagination = extract_pagination(params)?;
-        let res: Vec<Question> = store.questions.values().cloned().collect();
+        let pagination = limit_pagination(pagination, &res);
         let res = &res[pagination.start..pagination.end];
 
         Ok(warp::reply::json(&res))
     } else {
-        let res: Vec<Question> = store.questions.values().cloned().collect();
-
         Ok(warp::reply::json(&res))
     }
 }
