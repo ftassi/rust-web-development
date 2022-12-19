@@ -4,5 +4,11 @@
         "title": "How?",
         "content": "Please help me!",
         "tags": ["rust"] 
+    },
+    "2" : {
+        "id": "2",
+        "title": "Seconda domanda?",
+        "content": "Please help me!",
+        "tags": ["rust"] 
     }
 }
