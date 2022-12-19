@@ -36,6 +36,7 @@ struct QuestionId(String);
 enum Error {
     ParseError(std::num::ParseIntError),
     MissingParameters,
+    InvalidParameters,
 }
 
 impl Reject for Error {}
@@ -44,6 +45,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::ParseError(e) => write!(f, "Cannot parse paramter: {}", e),
             Error::MissingParameters => write!(f, "Missing parameter"),
+            Error::InvalidParameters => write!(f, "Start must be smaller than end"),
         }
     }
 }
@@ -52,6 +54,18 @@ impl std::fmt::Display for Error {
 struct Pagination {
     start: usize,
     end: usize,
+}
+
+struct InvalidPagination;
+
+impl Pagination {
+    fn new(start: usize, end: usize) -> Result<Self, InvalidPagination> {
+        if start > end {
+            Err(InvalidPagination)
+        } else {
+            Ok(Self { start, end })
+        }
+    }
 }
 
 fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Error> {
@@ -66,7 +80,8 @@ fn extract_pagination(params: HashMap<String, String>) -> Result<Pagination, Err
             .unwrap()
             .parse::<usize>()
             .map_err(Error::ParseError)?;
-        Ok(Pagination { start, end })
+        let pagination = Pagination::new(start, end).map_err(|_| Error::InvalidParameters)?;
+        Ok(pagination)
     } else {
         Err(Error::MissingParameters)
     }
