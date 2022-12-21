@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use warp::{
     filters::cors::CorsForbidden, http::Method, http::StatusCode, reject::Reject, Filter,
     Rejection, Reply,
@@ -7,12 +9,13 @@ use warp::{
 
 #[derive(Clone)]
 struct Store {
-    questions: HashMap<QuestionId, Question>,
+    questions: Arc<RwLock<HashMap<QuestionId, Question>>>,
 }
+
 impl Store {
     fn new() -> Self {
         Self {
-            questions: Self::init(),
+            questions: Arc::new(RwLock::new(Self::init())),
         }
     }
     fn init() -> HashMap<QuestionId, Question> {
@@ -37,6 +40,7 @@ enum Error {
     ParseError(std::num::ParseIntError),
     MissingParameters,
     InvalidParameters,
+    QuestionNotFound,
 }
 
 impl Reject for Error {}
@@ -46,6 +50,7 @@ impl std::fmt::Display for Error {
             Error::ParseError(e) => write!(f, "Cannot parse paramter: {}", e),
             Error::MissingParameters => write!(f, "Missing parameter"),
             Error::InvalidParameters => write!(f, "Start must be smaller than end"),
+            Error::QuestionNotFound => write!(f, "Question not found"),
         }
     }
 }
@@ -102,7 +107,7 @@ async fn get_questions(
     params: HashMap<String, String>,
     store: Store,
 ) -> Result<impl Reply, Rejection> {
-    let res: Vec<Question> = store.questions.values().cloned().collect();
+    let res: Vec<Question> = store.questions.read().await.values().cloned().collect();
     if !params.is_empty() {
         let pagination = extract_pagination(params)?;
         let pagination = limit_pagination(pagination, &res);
@@ -112,6 +117,35 @@ async fn get_questions(
     } else {
         Ok(warp::reply::json(&res))
     }
+}
+
+async fn add_question(store: Store, question: Question) -> Result<impl Reply, Rejection> {
+    store
+        .questions
+        .write()
+        .await
+        .insert(question.id.clone(), question);
+
+    Ok(warp::reply::with_status(
+        "Question added",
+        StatusCode::CREATED,
+    ))
+}
+
+async fn update_question(
+    id: String,
+    store: Store,
+    question: Question,
+) -> Result<impl Reply, Rejection> {
+    match store.questions.write().await.get_mut(&QuestionId(id)) {
+        Some(q) => *q = question,
+        None => return Err(warp::reject::custom(Error::QuestionNotFound)),
+    }
+
+    Ok(warp::reply::with_status(
+        "Question updated",
+        StatusCode::CREATED,
+    ))
 }
 
 async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
@@ -143,15 +177,33 @@ async fn main() {
         .allow_methods(&[Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_header("content-type");
 
-    let get_items = warp::get()
+    let get_questions = warp::get()
         .and(warp::path("questions"))
         .and(warp::path::end())
         .and(warp::query::<HashMap<String, String>>())
-        .and(store_filter)
-        .and_then(get_questions)
-        .recover(return_error);
+        .and(store_filter.clone())
+        .and_then(get_questions);
 
-    let routes = get_items.with(cors);
+    let add_question = warp::post()
+        .and(warp::path("questions"))
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and(warp::body::json())
+        .and_then(add_question);
+
+    let update_question = warp::put()
+        .and(warp::path("questions"))
+        .and(warp::path::param::<String>())
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and(warp::body::json())
+        .and_then(update_question);
+
+    let routes = get_questions
+        .or(add_question)
+        .or(update_question)
+        .with(cors)
+        .recover(return_error);
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
