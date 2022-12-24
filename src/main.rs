@@ -13,6 +13,7 @@ use warp::{
 #[derive(Clone)]
 struct Store {
     questions: Arc<RwLock<HashMap<QuestionId, Question>>>,
+    answers: Arc<RwLock<HashMap<QuestionId, Question>>>,
 }
 
 impl Store {
@@ -34,6 +35,15 @@ struct Question {
     content: String,
     tags: Option<Vec<String>>,
 }
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+struct Answer {
+    id: AnswerId,
+    content: String,
+    question_id: QuestionId,
+}
+#[derive(Eq, PartialEq, Clone, Hash, Serialize, Deserialize, Debug)]
+struct AnswerId(String);
 
 #[derive(Eq, PartialEq, Clone, Hash, Serialize, Deserialize, Debug)]
 struct QuestionId(String);
