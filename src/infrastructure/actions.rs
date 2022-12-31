@@ -3,7 +3,7 @@ use crate::domain::question::{Question, QuestionId};
 use crate::infrastructure::pagination::{extract_pagination, limit_pagination};
 use crate::infrastructure::store::Store;
 use std::collections::HashMap;
-use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
+use warp::{http::StatusCode, Rejection, Reply};
 
 pub async fn get_questions(
     params: HashMap<String, String>,
