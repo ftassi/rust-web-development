@@ -10,6 +10,12 @@ use warp::{http::Method, Filter};
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
+    log::error!("This is an error!");
+    log::info!("This is an info!");
+    log::warn!("This is an warning!");
+
     let store = Store::new();
     let store_filter = warp::any().map(move || store.clone());
 
@@ -17,6 +23,10 @@ async fn main() {
         .allow_any_origin()
         .allow_methods(&[Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_header("content-type");
+
+    let log = warp::log::custom(|info| {
+        log::info!("{} {} {}", info.method(), info.path(), info.status());
+    });
 
     let get_questions = warp::get()
         .and(warp::path("questions"))
@@ -52,6 +62,7 @@ async fn main() {
         .or(update_question)
         .or(delete_question)
         .with(cors)
+        .with(log)
         .recover(error::return_error);
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
